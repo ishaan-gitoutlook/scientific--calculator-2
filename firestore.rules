@@ -22,6 +22,23 @@ service cloud.firestore {
     //   - result: string (required) - Result (max 1000 chars)
     //   - timestamp: string (required) - ISO 8601 date string
     //
+    // Collection: homework_history
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required) - UID of the owner
+    //   - problem: string (required) - Problem description (max 5000 chars)
+    //   - solution: string (required) - AI solution (max 10000 chars)
+    //   - timestamp: string (required) - ISO 8601 date string
+    //   - hasImage: bool (required) - Whether an image was uploaded
+    //
+    // Collection: chat_history
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required) - UID of the owner
+    //   - messages: array (required) - Array of message objects {role, content, type}
+    //   - lastUpdated: string (required) - ISO 8601 date string
+    //   - title: string (required) - Chat title (max 200 chars)
+    //
     // ===============================================================
 
     // Default deny
@@ -86,6 +103,26 @@ service cloud.firestore {
              hasOnlyAllowedFields(['userId', 'expression', 'result', 'timestamp']);
     }
 
+    function isValidHomework(data) {
+      return data.keys().hasAll(['userId', 'problem', 'solution', 'timestamp', 'hasImage']) &&
+             data.userId is string &&
+             data.problem is string && data.problem.size() <= 5000 &&
+             data.solution is string && data.solution.size() <= 10000 &&
+             isValidDateString(data.timestamp) &&
+             data.hasImage is bool &&
+             hasOnlyAllowedFields(['userId', 'problem', 'solution', 'timestamp', 'hasImage']);
+    }
+
+    function isValidChat(data) {
+      return data.keys().hasAll(['userId', 'messages', 'lastUpdated', 'title']) &&
+             data.userId is string &&
+             data.messages is list &&
+             data.messages.size() <= 100 &&
+             isValidDateString(data.lastUpdated) &&
+             data.title is string && data.title.size() <= 200 &&
+             hasOnlyAllowedFields(['userId', 'messages', 'lastUpdated', 'title']);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -121,6 +158,39 @@ service cloud.firestore {
       
       // Calculations are immutable.
       allow update: if false;
+    }
+
+    match /homework_history/{historyId} {
+      // Owners can read their own homework history.
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Owners can create homework history for themselves.
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.userId) && 
+                      isValidHomework(request.resource.data);
+      
+      // Owners can delete their own homework history.
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Homework history is immutable.
+      allow update: if false;
+    }
+
+    match /chat_history/{chatId} {
+      // Owners can read their own chat history.
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Owners can create/update their own chat history.
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.userId) && 
+                      isValidChat(request.resource.data);
+      
+      allow update: if isAuthenticated() && 
+                      isOwner(resource.data.userId) && 
+                      isValidChat(request.resource.data);
+      
+      // Owners can delete their own chat history.
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
     }
   }
 }

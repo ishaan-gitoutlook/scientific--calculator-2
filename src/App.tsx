@@ -5,7 +5,7 @@ import { Calculator } from './components/Calculator';
 import { History } from './components/History';
 import { AIAssistant } from './components/AIAssistant';
 import { HomeworkHelper } from './components/HomeworkHelper';
-import { LogIn, LogOut, Calculator as CalcIcon, History as HistoryIcon, MessageSquare, Brain, AlertTriangle } from 'lucide-react';
+import { LogIn, LogOut, Calculator as CalcIcon, History as HistoryIcon, MessageSquare, Brain, AlertTriangle, Share2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
@@ -53,6 +53,14 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'calc' | 'history' | 'ai' | 'solver'>('calc');
+  const [copied, setCopied] = useState(false);
+
+  const shareApp = () => {
+    const url = "https://ais-pre-o5u24go4cqijwmxxwqhhjn-176039258568.asia-east1.run.app";
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -111,6 +119,14 @@ export default function App() {
               title="Homework Helper"
             >
               <MessageSquare className="w-5 h-5" />
+            </button>
+
+            <button 
+              onClick={shareApp}
+              className={`p-2 rounded-lg transition-all ${copied ? 'text-emerald-500' : 'text-zinc-400 hover:text-zinc-100'}`}
+              title="Share Application"
+            >
+              {copied ? <Check className="w-5 h-5" /> : <Share2 className="w-5 h-5" />}
             </button>
             
             <div className="w-px h-6 bg-white/10 mx-2" />

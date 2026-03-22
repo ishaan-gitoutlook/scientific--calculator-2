@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { User } from 'firebase/auth';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
-import { Send, Brain, Zap, Sparkles, MessageSquare, Info } from 'lucide-react';
+import { Send, Brain, Zap, Sparkles, MessageSquare, Info, History as HistoryIcon, Plus, Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../firebase';
+import { collection, addDoc, query, where, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 interface AIAssistantProps {
   user: User | null;
@@ -15,12 +17,47 @@ interface Message {
   type: 'lite' | 'pro';
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  lastUpdated: string;
+}
+
 export function AIAssistant({ user }: AIAssistantProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'lite' | 'pro'>('lite');
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [showSessions, setShowSessions] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setSessions([]);
+      setMessages([]);
+      setActiveSessionId(null);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'chat_history'),
+      where('userId', '==', user.uid),
+      orderBy('lastUpdated', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ChatSession[];
+      setSessions(items);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -28,11 +65,59 @@ export function AIAssistant({ user }: AIAssistantProps) {
     }
   }, [messages]);
 
+  const saveChat = async (newMessages: Message[]) => {
+    if (!user) return;
+
+    if (activeSessionId) {
+      try {
+        await updateDoc(doc(db, 'chat_history', activeSessionId), {
+          messages: newMessages,
+          lastUpdated: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('Failed to update chat:', err);
+      }
+    } else {
+      try {
+        const title = newMessages[0].content.slice(0, 50) + (newMessages[0].content.length > 50 ? '...' : '');
+        const docRef = await addDoc(collection(db, 'chat_history'), {
+          userId: user.uid,
+          title,
+          messages: newMessages,
+          lastUpdated: new Date().toISOString()
+        });
+        setActiveSessionId(docRef.id);
+      } catch (err) {
+        console.error('Failed to save chat:', err);
+      }
+    }
+  };
+
+  const deleteSession = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteDoc(doc(db, 'chat_history', id));
+      if (activeSessionId === id) {
+        setMessages([]);
+        setActiveSessionId(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+    }
+  };
+
+  const startNewChat = () => {
+    setMessages([]);
+    setActiveSessionId(null);
+    setShowSessions(false);
+  };
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
     const userMsg: Message = { role: 'user', content: input, type: mode };
-    setMessages(prev => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInput('');
     setLoading(true);
 
@@ -64,7 +149,12 @@ export function AIAssistant({ user }: AIAssistantProps) {
         content: response.text || 'Sorry, I could not generate a response.',
         type: mode
       };
-      setMessages(prev => [...prev, aiMsg]);
+      const finalMessages = [...updatedMessages, aiMsg];
+      setMessages(finalMessages);
+      
+      if (user) {
+        await saveChat(finalMessages);
+      }
     } catch (err) {
       console.error('AI Error:', err);
       setMessages(prev => [...prev, { role: 'ai', content: 'An error occurred while processing your request.', type: mode }]);
@@ -101,23 +191,81 @@ export function AIAssistant({ user }: AIAssistantProps) {
           </div>
         </div>
 
-        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
-          <button
-            onClick={() => setMode('lite')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === 'lite' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-zinc-400 hover:text-zinc-100'}`}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowSessions(!showSessions)}
+            className={`p-2 rounded-xl transition-all ${showSessions ? 'bg-emerald-500 text-black' : 'bg-black/40 border border-white/5 text-zinc-400 hover:text-zinc-100'}`}
+            title="Chat History"
           >
-            <Zap className="w-3 h-3" />
-            <span>Lite</span>
+            <HistoryIcon className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setMode('pro')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === 'pro' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-zinc-400 hover:text-zinc-100'}`}
+          <button 
+            onClick={startNewChat}
+            className="p-2 bg-black/40 border border-white/5 rounded-xl text-zinc-400 hover:text-white transition-all"
+            title="New Chat"
           >
-            <Brain className="w-3 h-3" />
-            <span>Pro</span>
+            <Plus className="w-4 h-4" />
           </button>
+          <div className="w-px h-6 bg-white/10 mx-1" />
+          <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+            <button
+              onClick={() => setMode('lite')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === 'lite' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-zinc-400 hover:text-zinc-100'}`}
+            >
+              <Zap className="w-3 h-3" />
+              <span>Lite</span>
+            </button>
+            <button
+              onClick={() => setMode('pro')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === 'pro' ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20' : 'text-zinc-400 hover:text-zinc-100'}`}
+            >
+              <Brain className="w-3 h-3" />
+              <span>Pro</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showSessions && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-black/40 border-b border-white/5 overflow-hidden"
+          >
+            <div className="p-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+              <h4 className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest px-2 mb-2">Recent Chats</h4>
+              {sessions.length > 0 ? (
+                sessions.map((session) => (
+                  <div 
+                    key={session.id}
+                    onClick={() => {
+                      setMessages(session.messages);
+                      setActiveSessionId(session.id);
+                      setShowSessions(false);
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all group ${activeSessionId === session.id ? 'bg-emerald-500/10 border border-emerald-500/20' : 'hover:bg-white/5 border border-transparent'}`}
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <MessageSquare className={`w-4 h-4 flex-shrink-0 ${activeSessionId === session.id ? 'text-emerald-500' : 'text-zinc-600'}`} />
+                      <span className="text-sm text-zinc-300 truncate">{session.title}</span>
+                    </div>
+                    <button 
+                      onClick={(e) => deleteSession(session.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-500 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-zinc-600 text-xs italic text-center py-4">No recent chats.</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages */}
       <div 
