@@ -1,0 +1,11 @@
+{
+  "status": "ok",
+  "env": "development",
+  "isProd": true,
+  "cwd": "/app/applet",
+  "dirname": "/app/applet",
+  "distPath": "/app/applet/dist",
+  "indexPath": "/app/applet/dist/index.html",
+  "distExists": true,
+  "indexExists": true
+}

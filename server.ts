@@ -10,28 +10,38 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Request logging
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-  });
+  const distPath = path.join(process.cwd(), 'dist');
+  const indexPath = path.join(distPath, 'index.html');
+  
+  // Check if we should run in production mode
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(indexPath);
 
   // API routes go here
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       env: process.env.NODE_ENV,
-      cwd: process.cwd(),
-      dirname: __dirname,
-      distExists: fs.existsSync(path.resolve(__dirname, 'dist')),
-      indexExists: fs.existsSync(path.resolve(__dirname, 'dist', 'index.html'))
+      isProd,
+      distExists: fs.existsSync(distPath),
+      indexExists: fs.existsSync(indexPath)
     });
   });
 
-  const distPath = path.resolve(__dirname, 'dist');
-  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(path.join(distPath, 'index.html'));
-
-  if (!isProd) {
+  if (isProd) {
+    console.log(`Starting in production mode serving static files from: ${distPath}`);
+    
+    // Serve static files from dist
+    app.use(express.static(distPath));
+    
+    // Serve index.html for all other routes (SPA fallback)
+    app.get('*', (req, res) => {
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send(`Production build not found at ${indexPath}. Please run 'npm run build'.`);
+      }
+    });
+  } else {
     console.log("Starting in development mode with Vite middleware...");
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
@@ -39,17 +49,6 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    console.log("Starting in production mode serving static files...");
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      const indexPath = path.join(distPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send("Production build not found. Please run 'npm run build'.");
-      }
-    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
