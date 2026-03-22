@@ -1,0 +1,5 @@
+{
+  "name": "AI Scientific Calculator",
+  "description": "A powerful scientific calculator with AI-powered math assistance, step-by-step homework help, and history persistence.",
+  "requestFramePermissions": []
+}

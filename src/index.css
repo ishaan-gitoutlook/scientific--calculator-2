@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0a0a0a] text-zinc-100;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+/* Prose overrides for AI responses */
+.prose {
+  @apply text-zinc-300;
+}
+
+.prose strong {
+  @apply text-emerald-500 font-bold;
+}
+
+.prose code {
+  @apply bg-black/50 px-1.5 py-0.5 rounded border border-white/10 text-emerald-400 font-mono before:content-none after:content-none;
+}
+
+.prose pre {
+  @apply bg-black/50 p-4 rounded-xl border border-white/10 overflow-x-auto my-4;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0 border-none text-zinc-100;
+}
+
+.prose h1, .prose h2, .prose h3 {
+  @apply text-zinc-100 font-bold mt-6 mb-4;
+}
+
+.prose ul, .prose ol {
+  @apply my-4 pl-6;
+}
+
+.prose li {
+  @apply my-2;
+}

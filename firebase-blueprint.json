@@ -1,0 +1,22 @@
+{
+  "entities": {
+    "Calculation": {
+      "title": "Calculation",
+      "description": "A single calculation record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user who performed the calculation." },
+        "expression": { "type": "string", "description": "The mathematical expression." },
+        "result": { "type": "string", "description": "The result of the calculation." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the calculation was performed." }
+      },
+      "required": ["userId", "expression", "result", "timestamp"]
+    }
+  },
+  "firestore": {
+    "calculations": {
+      "schema": "Calculation",
+      "description": "Collection of user calculation history."
+    }
+  }
+}
