@@ -190,32 +190,66 @@ export function Calculator({ user }: CalculatorProps) {
     }
   };
 
-  const performMatrixOp = async (op: 'add' | 'sub' | 'mul' | 'transposeA' | 'transposeB') => {
+  const performMatrixOp = async (op: 'add' | 'sub' | 'mul' | 'transposeA' | 'transposeB' | 'detA' | 'detB' | 'invA' | 'invB') => {
     setMatrixError(null);
     try {
-      const parseMatrix = (m: string[][]) => m.map(row => row.map(val => math.evaluate(val || '0')));
+      const parseMatrix = (m: string[][], name: string) => m.map((row, r) => row.map((val, c) => {
+        const trimmed = val.trim();
+        if (trimmed === '') return 0;
+        try {
+          const res = math.evaluate(trimmed);
+          if (!math.isNumeric(res)) {
+            throw new Error('Not a number');
+          }
+          return res;
+        } catch (err) {
+          throw new Error(`Invalid input at ${name}[${r + 1},${c + 1}]: "${val}" is not a valid number`);
+        }
+      }));
       
       let res;
       let expression = '';
       
       if (op === 'add') {
-        if (rowsA !== rowsB || colsA !== colsB) throw new Error('Dimensions must match for addition');
-        res = math.add(parseMatrix(matrixA), parseMatrix(matrixB));
+        if (rowsA !== rowsB || colsA !== colsB) throw new Error(`Incompatible dimensions: Matrices must have the same dimensions for addition. (A: ${rowsA}x${colsA}, B: ${rowsB}x${colsB})`);
+        res = math.add(parseMatrix(matrixA, 'A') as any, parseMatrix(matrixB, 'B') as any);
         expression = 'Matrix A + Matrix B';
       } else if (op === 'sub') {
-        if (rowsA !== rowsB || colsA !== colsB) throw new Error('Dimensions must match for subtraction');
-        res = math.subtract(parseMatrix(matrixA), parseMatrix(matrixB));
+        if (rowsA !== rowsB || colsA !== colsB) throw new Error(`Incompatible dimensions: Matrices must have the same dimensions for subtraction. (A: ${rowsA}x${colsA}, B: ${rowsB}x${colsB})`);
+        res = math.subtract(parseMatrix(matrixA, 'A') as any, parseMatrix(matrixB, 'B') as any);
         expression = 'Matrix A - Matrix B';
       } else if (op === 'mul') {
-        if (colsA !== rowsB) throw new Error('Cols of A must match rows of B');
-        res = math.multiply(parseMatrix(matrixA), parseMatrix(matrixB));
+        if (colsA !== rowsB) throw new Error(`Incompatible dimensions: Number of columns in Matrix A (${colsA}) must equal the number of rows in Matrix B (${rowsB}) for multiplication.`);
+        res = math.multiply(parseMatrix(matrixA, 'A') as any, parseMatrix(matrixB, 'B') as any);
         expression = 'Matrix A * Matrix B';
       } else if (op === 'transposeA') {
-        res = math.transpose(parseMatrix(matrixA));
+        res = math.transpose(parseMatrix(matrixA, 'A') as any);
         expression = 'Transpose(Matrix A)';
       } else if (op === 'transposeB') {
-        res = math.transpose(parseMatrix(matrixB));
+        res = math.transpose(parseMatrix(matrixB, 'B') as any);
         expression = 'Transpose(Matrix B)';
+      } else if (op === 'detA') {
+        if (rowsA !== colsA) throw new Error('Incompatible dimensions: Matrix A must be square (Rows = Columns) to calculate determinant.');
+        res = math.det(parseMatrix(matrixA, 'A') as any);
+        expression = 'det(Matrix A)';
+      } else if (op === 'detB') {
+        if (rowsB !== colsB) throw new Error('Incompatible dimensions: Matrix B must be square (Rows = Columns) to calculate determinant.');
+        res = math.det(parseMatrix(matrixB, 'B') as any);
+        expression = 'det(Matrix B)';
+      } else if (op === 'invA') {
+        if (rowsA !== colsA) throw new Error('Incompatible dimensions: Matrix A must be square (Rows = Columns) to calculate inverse.');
+        const m = parseMatrix(matrixA, 'A') as any;
+        const d = math.det(m);
+        if (Math.abs(d) < 1e-10) throw new Error('Singular Matrix: Matrix A has a determinant of zero and cannot be inverted.');
+        res = math.inv(m);
+        expression = 'inv(Matrix A)';
+      } else if (op === 'invB') {
+        if (rowsB !== colsB) throw new Error('Incompatible dimensions: Matrix B must be square (Rows = Columns) to calculate inverse.');
+        const m = parseMatrix(matrixB, 'B') as any;
+        const d = math.det(m);
+        if (Math.abs(d) < 1e-10) throw new Error('Singular Matrix: Matrix B has a determinant of zero and cannot be inverted.');
+        res = math.inv(m);
+        expression = 'inv(Matrix B)';
       }
 
       setMatrixResult(res);
@@ -501,12 +535,26 @@ export function Calculator({ user }: CalculatorProps) {
                     />
                   )))}
                 </div>
-                <button 
-                  onClick={() => performMatrixOp('transposeA')}
-                  className="mt-6 w-full py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2"
-                >
-                  <ArrowRightLeft className="w-4 h-4" /> Transpose A
-                </button>
+                <div className="flex gap-2 mt-6">
+                  <button 
+                    onClick={() => performMatrixOp('transposeA')}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1"
+                  >
+                    <ArrowRightLeft className="w-3 h-3" /> Transpose
+                  </button>
+                  <button 
+                    onClick={() => performMatrixOp('detA')}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1"
+                  >
+                    Det
+                  </button>
+                  <button 
+                    onClick={() => performMatrixOp('invA')}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1"
+                  >
+                    Inv
+                  </button>
+                </div>
               </div>
 
               {/* Matrix B */}
@@ -544,12 +592,26 @@ export function Calculator({ user }: CalculatorProps) {
                     />
                   )))}
                 </div>
-                <button 
-                  onClick={() => performMatrixOp('transposeB')}
-                  className="mt-6 w-full py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2"
-                >
-                  <ArrowRightLeft className="w-4 h-4" /> Transpose B
-                </button>
+                <div className="flex gap-2 mt-6">
+                  <button 
+                    onClick={() => performMatrixOp('transposeB')}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1"
+                  >
+                    <ArrowRightLeft className="w-3 h-3" /> Transpose
+                  </button>
+                  <button 
+                    onClick={() => performMatrixOp('detB')}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1"
+                  >
+                    Det
+                  </button>
+                  <button 
+                    onClick={() => performMatrixOp('invB')}
+                    className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1"
+                  >
+                    Inv
+                  </button>
+                </div>
               </div>
             </div>
 
